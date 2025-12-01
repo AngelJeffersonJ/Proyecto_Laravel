@@ -1,8 +1,7 @@
 name: Deploy Laravel to Azure
 
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -11,48 +10,32 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup PHP
-      uses: shivammathur/setup-php@v2
+    - name: Download artifact from Build workflow
+      uses: dawidd6/action-download-artifact@v3
       with:
-        php-version: '8.2'
-        extensions: mbstring, intl, pdo_mysql
-        tools: composer
+        repo: AngelJeffersonJ/Proyecto_Laravel
+        workflow: build.yml   # 👈 ESTE es el verdadero workflow fuente
+        name: php-app
+        path: ./artifact
+        check_artifacts: true
+        allow_forks: true
 
-    - name: Install dependencies
-      working-directory: proyecto1
-      run: composer install --no-dev --optimize-autoloader
+    - name: Check artifact contents
+      run: ls -R ./artifact
 
-    - name: Laravel optimizations
-      working-directory: proyecto1
-      run: |
-        php artisan config:cache
-        php artisan route:cache
-        php artisan view:cache
-      env:
-        APP_ENV: production
-        APP_KEY: ${{ secrets.APP_KEY }}
-
-    # Create ZIP for deployment
-    - name: Generate deployment ZIP
-      run: |
-        cd proyecto1
-        zip -r ../release.zip . -x "*.git*"
-
-    # Login using Managed Identity
-    - name: Azure Login (OIDC)
+    - name: Azure Login
       uses: azure/login@v2
       with:
         auth-type: IDENTITY
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        audience: api://AzureADTokenExchange
 
-    # Deploy to Azure Web App
     - name: Deploy ZIP to App Service
       uses: azure/webapps-deploy@v3
       with:
-        app-name: "rg-laravel-c7h0h3fcbaacata0" # Nombre real
-        package: "release.zip"
+        app-name: "RG-Laravel"
+        package: "./artifact/php-app.zip"
