@@ -13,10 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout
+    - name: Checkout code
       uses: actions/checkout@v4
 
-    # 🛈 Instalar PHP para los comandos de Laravel
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
       with:
@@ -25,11 +24,11 @@ jobs:
         tools: composer
 
     - name: Install dependencies
-      working-directory: Proyecto_Laravel
+      working-directory: proyecto1
       run: composer install --no-dev --optimize-autoloader
 
     - name: Laravel optimizations
-      working-directory: Proyecto_Laravel
+      working-directory: proyecto1
       run: |
         php artisan config:cache
         php artisan route:cache
@@ -38,24 +37,22 @@ jobs:
         APP_ENV: production
         APP_KEY: ${{ secrets.APP_KEY }}
 
-    # 🛠 Empaquetar ZIP que se enviará a Azure
+    # Create ZIP for deployment
     - name: Generate deployment ZIP
       run: |
-        cd Proyecto_Laravel
+        cd proyecto1
         zip -r ../release.zip . -x "*.git*"
 
-    # 🔐 Login con la **identidad administrada del App Service**
-    - name: Azure Login
+    # Login using Managed Identity
+    - name: Azure Login (OIDC)
       uses: azure/login@v2
       with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        auth-type: IDENTITY
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-        auth-type: SERVICE_PRINCIPAL
 
-    # 🚀 Despliegue al App Service
+    # Deploy to Azure Web App
     - name: Deploy ZIP to App Service
       uses: azure/webapps-deploy@v3
       with:
-        app-name: "RG-Laravel" # ⚠️ Nombre EXACTO del App Service
+        app-name: "rg-laravel-c7h0h3fcbaacata0" # Nombre real
         package: "release.zip"
