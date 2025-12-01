@@ -1,0 +1,61 @@
+name: Deploy Laravel to Azure
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # 🛈 Instalar PHP para los comandos de Laravel
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, intl, pdo_mysql
+        tools: composer
+
+    - name: Install dependencies
+      working-directory: Proyecto_Laravel
+      run: composer install --no-dev --optimize-autoloader
+
+    - name: Laravel optimizations
+      working-directory: Proyecto_Laravel
+      run: |
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+      env:
+        APP_ENV: production
+        APP_KEY: ${{ secrets.APP_KEY }}
+
+    # 🛠 Empaquetar ZIP que se enviará a Azure
+    - name: Generate deployment ZIP
+      run: |
+        cd Proyecto_Laravel
+        zip -r ../release.zip . -x "*.git*"
+
+    # 🔐 Login con la **identidad administrada del App Service**
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        auth-type: SERVICE_PRINCIPAL
+
+    # 🚀 Despliegue al App Service
+    - name: Deploy ZIP to App Service
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: "RG-Laravel" # ⚠️ Nombre EXACTO del App Service
+        package: "release.zip"
