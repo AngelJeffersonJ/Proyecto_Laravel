@@ -12,30 +12,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
+    - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Download artifact from Build workflow
       uses: dawidd6/action-download-artifact@v3
       with:
         repo: AngelJeffersonJ/Proyecto_Laravel
-        workflow: build.yml   # 👈 ESTE es el verdadero workflow fuente
-        name: php-app
+        workflow: build.yml            # 👈 workflow que genera el ZIP
+        name: php-app                  # 👈 nombre del artifact
         path: ./artifact
         check_artifacts: true
-        allow_forks: true
 
-    - name: Check artifact contents
+    - name: Show downloaded files
       run: ls -R ./artifact
 
-    - name: Azure Login
+    # 🔐 Login to Azure using Managed Identity
+    - name: Azure Login (OIDC)
       uses: azure/login@v2
       with:
         auth-type: IDENTITY
-        audience: api://AzureADTokenExchange
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }} # 👈 NECESARIO
 
+    # 🚀 Deploy to Azure WebApp
     - name: Deploy ZIP to App Service
       uses: azure/webapps-deploy@v3
       with:
-        app-name: "RG-Laravel"
-        package: "./artifact/php-app.zip"
+        app-name: "rg-laravel-c7h0h3fcbaacata0" # 👈 Nombre EXACTO del App Service
+        package: "./artifact/php-app.zip"        # 👈 ZIP a desplegar
