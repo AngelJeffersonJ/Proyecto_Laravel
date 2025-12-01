@@ -6,61 +6,45 @@ on:
       - main
 
 env:
-  APP_NAME: RG-Laravel
-  PHP_VERSION: '8.2'
   PROJECT_DIR: 'proyecto1'
-
-permissions:
-  id-token: write
-  contents: read
+  APP_NAME: 'RG-Laravel'
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # ------ Login to Azure with OIDC ------
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      # ------ Checkout Repo ------
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # ------ Setup PHP ------
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ env.PHP_VERSION }}
+          php-version: '8.2'
           extensions: mbstring, intl, pdo_mysql
           tools: composer
 
-      # ------ Laravel Dependencies ------
-      - name: Composer Install
-        run: composer install --no-dev --optimize-autoloader
+      - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
+        run: composer install --no-dev --optimize-autoloader
 
-      - name: Generate Key + Cache
+      - name: Prepare Laravel
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           cp .env.example .env
           php artisan key:generate --force
           php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
-        working-directory: ${{ env.PROJECT_DIR }}
 
-      # ------ ZIP PACKAGE ------
-      - name: Create deployment package
-        run: zip -r release.zip . -x '*.git*' '*.github*'
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Login to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          auth-type: IDENTITY
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ------ DEPLOY ------
-      - name: Deploy to Azure WebApp
+      - name: Deploy to Azure Web App (Linux)
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.APP_NAME }}
-          package: ${{ env.PROJECT_DIR }}/release.zip
+          package: ${{ env.PROJECT_DIR }}
