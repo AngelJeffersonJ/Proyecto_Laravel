@@ -1,38 +1,48 @@
-name: Azure Web App Deploy - Laravel
+name: Azure Deploy Laravel
 
 on:
   push:
     branches:
       - main
 
+env:
+  APP_NAME: RG-Laravel
+  AZURE_WEBAPP_PACKAGE_PATH: '.' # donde está el proyecto en tu repo
+  PHP_VERSION: '8.2'
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-    # Checkout del repositorio
-    - name: Checkout repo
+
+    # Checkout del repo
+    - name: Checkout GitHub Action
       uses: actions/checkout@v4
 
-    # Configuración de PHP para Laravel
-    - name: Set up PHP
+    # Configurar PHP
+    - name: Setup PHP
       uses: shivammathur/setup-php@v2
       with:
-        php-version: '8.2'
-        extensions: mbstring, intl, pdo_mysql, bcmath, openssl
+        php-version: ${{ env.PHP_VERSION }}
+        extensions: mbstring, intl, pdo_mysql
         tools: composer
 
-    # Instalar dependencias Composer (solo producción, más ligero)
-    - name: Install dependencies
+    # Instalar dependencias Laravel
+    - name: Composer Install
       run: composer install --no-dev --optimize-autoloader
 
-    # Configurar Laravel APP_KEY
-    - name: Generate APP_KEY
+    # Copiar .env si existe en repo
+    - name: Copy .env if exists
       run: |
-        cp .env.example .env
-        php artisan key:generate
+        if [ -f ".env.example" ]; then
+          cp .env.example .env
+        fi
 
-    # ---------- Azure Deployment Block (el que dio tu profe) ----------
+    # Generar clave Laravel
+    - name: Generate key
+      run: php artisan key:generate --force
+
+    # Optimización Laravel (del profe)
     - name: Laravel optimizations
       run: |
         php artisan config:cache
@@ -41,36 +51,15 @@ jobs:
       env:
         APP_ENV: production
         APP_DEBUG: false
-        APP_KEY: ${{ secrets.APP_KEY }}
 
-    # Empaquetar para despliegue
+    # Crear .zip para desplegar
     - name: Create deployment package
-      run: zip -r release.zip . -x '*.git*'
+      run: zip -r release.zip . -x '*.git*' '*.github*'
 
-    # Subir artifact al job de deployment
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: laravel-app
-        path: release.zip
-
-  deploy:
-    needs: build-and-deploy
-    runs-on: ubuntu-latest
-    environment:
-      name: production
-
-    steps:
-    - name: Download artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: laravel-app
-
-    # Desplegar a Azure Web App
+    # Desplegar a Azure App Service
     - name: Deploy to Azure WebApp
       uses: azure/webapps-deploy@v2
       with:
-        app-name: YOUR_APP_NAME_HERE
-        slot-name: production
-        publish-profile: ${{ secrets.AzureAppService_PublishProfile }}
+        app-name: ${{ env.APP_NAME }}
+        slot-name: 'production'
         package: release.zip
