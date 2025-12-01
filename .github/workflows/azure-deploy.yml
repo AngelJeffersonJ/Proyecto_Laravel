@@ -1,0 +1,55 @@
+name: Deploy Laravel to Azure
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, intl, pdo_mysql
+
+    - name: Install dependencies (no dev)
+      run: |
+        composer install --no-dev --optimize-autoloader
+      working-directory: proyecto1
+
+    - name: Laravel optimizations
+      run: |
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+      working-directory: proyecto1
+
+    - name: Create deployment package
+      run: |
+        cd proyecto1
+        zip -r ../release.zip . -x '*.git*'
+
+    # --- AUTENTICACIÓN A AZURE ---
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }} # TU secreto
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }} # TU secreto
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # --- DEPLOY ---
+    - name: Deploy to Azure WebApp
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: rg-laravel-c7h0h3fcbaacata0 # NOMBRE EXACTO DE TU APP
+        package: release.zip
