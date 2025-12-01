@@ -1,0 +1,20 @@
+name: Upload ZIP for manual deployment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download latest artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          name: php-app
+          path: ./artifact
+
+      - name: Upload artifact publicly
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-zip
+          path: artifact
