@@ -1,0 +1,22 @@
+name: Make ZIP public
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download php-app artifact
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        name: php-app
+        path: ./artifact
+        check_artifacts: true
+
+    - name: Upload ZIP for manual download
+      uses: actions/upload-artifact@v4
+      with:
+        name: deploy
+        path: ./artifact/php-app.zip
