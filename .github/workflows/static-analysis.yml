@@ -1,50 +1,53 @@
-name: Azure Deploy Laravel
+name: Deploy Laravel to Azure
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
-env:
-  PROJECT_DIR: 'proyecto1'
-  APP_NAME: 'RG-Laravel'
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          extensions: mbstring, intl, pdo_mysql
-          tools: composer
+    - name: Set up PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, intl, pdo_mysql
 
-      - name: Install dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: composer install --no-dev --optimize-autoloader
+    - name: Install dependencies (no dev)
+      run: |
+        composer install --no-dev --optimize-autoloader
+      working-directory: proyecto1
 
-      - name: Prepare Laravel
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          cp .env.example .env
-          php artisan key:generate --force
-          php artisan config:cache
+    - name: Laravel optimizations
+      run: |
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+      working-directory: proyecto1
 
-      - name: Login to Azure using OIDC
-        uses: azure/login@v2
-        with:
-          auth-type: IDENTITY
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Create deployment package
+      run: |
+        cd proyecto1
+        zip -r ../release.zip . -x '*.git*'
 
-      - name: Deploy to Azure Web App (Linux)
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.APP_NAME }}
-          package: ${{ env.PROJECT_DIR }}
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}   # Cambiar con tu secreto
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}   # Cambiar con tu secreto
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Deploy to Azure WebApp
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: rg-laravel-c7h0h3fcbaacata0   # tu nombre exacto
+        package: release.zip
