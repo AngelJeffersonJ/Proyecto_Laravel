@@ -1,0 +1,61 @@
+name: Static Code Review
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---------- Checkout ----------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ---------- PHP Setup ----------
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_mysql
+          coverage: none
+          tools: composer
+
+      # ---------- Cache Composer ----------
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: proyecto1/vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('proyecto1/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
+
+      # ---------- Install Dependencies ----------
+      - name: Install Composer dependencies
+        run: composer install --no-progress --prefer-dist --no-interaction
+        working-directory: proyecto1
+
+      # ---------- Environment & Database ----------
+      - name: Set up the database
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        working-directory: proyecto1
+
+      # ---------- Run Tests ----------
+      - name: Run tests
+        run: php artisan test
+        working-directory: proyecto1
+
+      # ---------- PHPStan / Larastan ----------
+      - name: Run PHPStan (Larastan)
+        run: vendor/bin/phpstan analyse --configuration=phpstan.neon
+        working-directory: proyecto1
+
+      # ---------- Laravel Pint (code style) ----------
+      - name: Run Laravel Pint
+        run: vendor/bin/pint --test
+        working-directory: proyecto1
