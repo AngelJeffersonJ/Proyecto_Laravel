@@ -1,53 +1,61 @@
-name: Deploy Laravel to Azure
+name: Static Code Review
 
 on:
   push:
-    branches: [ "main" ]
-
-permissions:
-  id-token: write
-  contents: read
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
 
 jobs:
-  build-and-deploy:
+  static-analysis:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      # ---------- Checkout ----------
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.2'
-        extensions: mbstring, intl, pdo_mysql
+      # ---------- PHP Setup ----------
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_mysql
+          coverage: none
+          tools: composer
 
-    - name: Install dependencies (no dev)
-      run: |
-        composer install --no-dev --optimize-autoloader
-      working-directory: proyecto1
+      # ---------- Cache Composer ----------
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: proyecto1/vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('proyecto1/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
 
-    - name: Laravel optimizations
-      run: |
-        php artisan config:cache
-        php artisan route:cache
-        php artisan view:cache
-      working-directory: proyecto1
+      # ---------- Install Dependencies ----------
+      - name: Install Composer dependencies
+        run: composer install --no-progress --prefer-dist --no-interaction
+        working-directory: proyecto1
 
-    - name: Create deployment package
-      run: |
-        cd proyecto1
-        zip -r ../release.zip . -x '*.git*'
+      # ---------- Environment & Database ----------
+      - name: Set up the database
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        working-directory: proyecto1
 
-    - name: Azure Login
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}   # Cambiar con tu secreto
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}   # Cambiar con tu secreto
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # ---------- Run Tests ----------
+      - name: Run tests
+        run: php artisan test
+        working-directory: proyecto1
 
-    - name: Deploy to Azure WebApp
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: rg-laravel-c7h0h3fcbaacata0   # tu nombre exacto
-        package: release.zip
+      # ---------- PHPStan / Larastan ----------
+      - name: Run PHPStan (Larastan)
+        run: vendor/bin/phpstan analyse --configuration=phpstan.neon
+        working-directory: proyecto1
+
+      # ---------- Laravel Pint (code style) ----------
+      - name: Run Laravel Pint
+        run: vendor/bin/pint --test
+        working-directory: proyecto1
