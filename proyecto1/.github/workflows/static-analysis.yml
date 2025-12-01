@@ -54,4 +54,4 @@ jobs:
       # ---------- Laravel Pint (code style) ----------
       - name: Run Laravel Pint
         run: |
-          vendor/bin/pint --test
+          vendor/bin/pint --test 
